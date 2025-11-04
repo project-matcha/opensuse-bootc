@@ -46,7 +46,7 @@ RUN echo 'add_drivers+=" erofs "' >> /etc/dracut.conf.d/composefs.conf
 RUN usermod -p "$(echo "changeme" | mkpasswd -s)" root
 
 RUN sh -c 'export KERNEL_VERSION="$(basename "$(find /usr/lib/modules -maxdepth 1 -type d | grep -v -E "*.img" | tail -n 1)")" && \
-    dracut --force --add debug --no-hostonly --reproducible --zstd --verbose --kver "$KERNEL_VERSION"  "/usr/lib/modules/$(cat kernel_version.txt)/initramfs.img"
+    dracut --force --add debug --no-hostonly --reproducible --zstd --verbose --kver "$KERNEL_VERSION"  "/usr/lib/modules/$(cat kernel_version.txt)/initramfs.img"'
 
 RUN rm -rf /var /boot /home /root /usr/local /srv && \
     mkdir -p /var /boot /sysroot && \
