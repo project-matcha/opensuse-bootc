@@ -3,26 +3,17 @@ FROM registry.opensuse.org/opensuse/tumbleweed:latest
 COPY files/37composefs/ /usr/lib/dracut/modules.d/37composefs/
 COPY files/ostree/prepare-root.conf /usr/lib/ostree/prepare-root.conf
 
-RUN zypper install -y ostree-devel git cargo rust
+ENV DEV_DEPS="ostree-devel git cargo rust"
+ENV DRACUT_NO_XATTR=1
 
-RUN --mount=type=tmpfs,dst=/tmp cd /tmp && \
-    git clone https://github.com/bootc-dev/bootc.git bootc && \
-    cd bootc && \
-    git fetch --all && \
-    git switch origin/composefs-backend -d && \
-    cargo build --release --bins --features "pre-6.15" && \
-    install -Dpm0755 -t /usr/bin ./target/release/bootc && \
-    install -Dpm0755 -t /usr/bin ./target/release/system-reinstall-bootc && \
-    install -Dpm0755 -t /usr/bin ./target/release/bootc-initramfs-setup
+RUN zypper install -y ${DEV_DEPS}
 
-RUN --mount=type=tmpfs,dst=/tmp cd /tmp && \
-    git clone https://github.com/p5/coreos-bootupd.git bootupd && \
-    cd bootupd && \
-    git fetch --all && \
-    git switch origin/sdboot-support -d && \
-    cargo build --release --bins --features systemd-boot && \
-    install -Dpm0755 -t /usr/bin ./target/release/bootupd && \
-    ln -s ./bootupd /usr/bin/bootupctl
+RUN --mount=type=tmpfs,dst=/tmp --mount=type=tmpfs,dst=/root \
+    git clone https://github.com/bootc-dev/bootc.git /tmp/bootc && \
+    cd /tmp/bootc && \
+    make bin install-all install-initramfs-dracut
+
+RUN zypper remove --clean-deps -y ${DEV_DEPS}
 
 RUN zypper install -y \
   dracut \
@@ -52,24 +43,28 @@ RUN cp /usr/bin/bootc-initramfs-setup /usr/lib/dracut/modules.d/37composefs
 
 RUN echo 'add_drivers+=" erofs "' >> /etc/dracut.conf.d/composefs.conf
 
-RUN echo "$(basename "$(find /usr/lib/modules -maxdepth 1 -type d | grep -v -E "*.img" | tail -n 1)")" > kernel_version.txt && \
-    dracut --force --add debug --no-hostonly --reproducible --zstd --verbose --kver "$(cat kernel_version.txt)"  "/usr/lib/modules/$(cat kernel_version.txt)/initramfs.img" && \
-    rm kernel_version.txt
+RUN usermod -p "$(echo "changeme" | mkpasswd -s)" root
 
-# Alter root file structure a bit for ostree
-RUN mkdir -p /boot /sysroot /var/home && \
-    rm -rf /var/log /home /root /usr/local /srv && \
+RUN sh -c 'export KERNEL_VERSION="$(basename "$(find /usr/lib/modules -maxdepth 1 -type d | grep -v -E "*.img" | tail -n 1)")" && \
+    dracut --force --add debug --no-hostonly --reproducible --zstd --verbose --kver "$KERNEL_VERSION"  "/usr/lib/modules/$(cat kernel_version.txt)/initramfs.img"
+
+RUN rm -rf /var /boot /home /root /usr/local /srv && \
+    mkdir -p /var /boot /sysroot && \
     ln -s /var/home /home && \
     ln -s /var/roothome /root && \
-    ln -s /var/usrlocal /usr/local && \
-    ln -s /var/srv /srv
+    ln -s /var/srv /srv && \
+    ln -s sysroot/ostree ostree && \
+    ln -s /var/usrlocal /usr/local
 
-# Setup a temporary root passwd (changeme) for dev purposes
-# TODO: Replace this for a more robust option when in prod
-RUN usermod -p '$6$AJv9RHlhEXO6Gpul$5fvVTZXeM0vC03xckTIjY8rdCofnkKSzvF5vEzXDKAby5p3qaOGTHDypVVxKsCE3CbZz7C3NXnbpITrEUvN/Y/' root
+# Update useradd default to /var/home instead of /home for User Creation
+RUN sed -i 's|^HOME=.*|HOME=/var/home|' "/etc/default/useradd"
 
 # If you want a desktop :)
-# RUN zypper install -y -t pattern kde && zypper install -y konsole sddm-qt6 vim dolphin
+RUN zypper install -y -t pattern kde && zypper install -y konsole sddm-qt6 vim dolphin
 
-# Necessary labels
-LABEL containers.bootc 1
+# Necessary for `bootc install`
+RUN mkdir -p /usr/lib/ostree && \
+    printf  "[composefs]\nenabled = yes\n[sysroot]\nreadonly = true\n" | \
+    tee "/usr/lib/ostree/prepare-root.conf"
+
+RUN bootc container lint
