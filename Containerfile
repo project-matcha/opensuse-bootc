@@ -1,7 +1,6 @@
 FROM registry.opensuse.org/opensuse/tumbleweed:latest
 
 COPY files/37composefs/ /usr/lib/dracut/modules.d/37composefs/
-COPY files/ostree/prepare-root.conf /usr/lib/ostree/prepare-root.conf
 
 ENV DEV_DEPS="ostree-devel git cargo rust"
 ENV DRACUT_NO_XATTR=1
