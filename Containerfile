@@ -2,17 +2,17 @@ FROM registry.opensuse.org/opensuse/tumbleweed:latest
 
 COPY files/37composefs/ /usr/lib/dracut/modules.d/37composefs/
 
-ENV DEV_DEPS="ostree-devel git cargo rust"
+ENV DEV_DEPS="ostree-devel git cargo rust make"
 ENV DRACUT_NO_XATTR=1
 
-RUN zypper install -y ${DEV_DEPS} && zypper install -y -t pattern devel_basis
+RUN zypper install -y ${DEV_DEPS}
 
 RUN --mount=type=tmpfs,dst=/tmp --mount=type=tmpfs,dst=/root \
     git clone https://github.com/bootc-dev/bootc.git /tmp/bootc && \
     cd /tmp/bootc && \
     make bin install-all install-initramfs-dracut
 
-RUN zypper remove --clean-deps -y ${DEV_DEPS} && zypper remove --clean-deps -y -t pattern devel_basis
+RUN zypper remove --clean-deps -y ${DEV_DEPS}
 
 RUN zypper install -y \
   dracut \
