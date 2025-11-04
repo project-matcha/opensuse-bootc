@@ -38,8 +38,6 @@ RUN zypper install -y \
   dbus-broker \
   systemd-boot
 
-RUN cp /usr/bin/bootc-initramfs-setup /usr/lib/dracut/modules.d/37composefs
-
 RUN echo 'add_drivers+=" erofs "' >> /etc/dracut.conf.d/composefs.conf
 
 RUN usermod -p "$(echo "changeme" | mkpasswd -s)" root
